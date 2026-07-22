@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-07-23
+
+### Added
+- **Agent skills pack** bundled in the wheel (`payagent/agent_skills/payagent`)
+- **`payagent skills install|list|path`** — install into Grok, Claude Code, Codex, Cursor, Pi, Continue, Windsurf, Antigravity
+- Agent-native CLI: **`pay`**, **`get`**, **`request`**, **`balance`**, **`history`**, **`remaining`**
+- **`--json`** on all commands + stable exit codes (0/2/3/4) for agent automation
+- Cursor rule (`cursor.mdc`) + generic `AGENTS.md` snippet
+
+### Why
+Agents can pay and learn payagent via **skill + CLI**, not only raw Python.
+
 ## 0.2.0 — 2026-07-23
 
 ### Added

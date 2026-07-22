@@ -1,0 +1,16 @@
+---
+description: Use payagent to pay for APIs (HTTP 402), budgets, @paywall monetization, and CLI payments.
+globs:
+alwaysApply: false
+---
+
+# payagent (Cursor rule)
+
+When the user needs agent payments, HTTP 402, paywalls, or micropayments:
+
+1. Prefer CLI: `payagent get <url> --json`, `payagent pay --to … --amount … --json`
+2. Or Python: `AgentWallet.from_env()` + `AgentPayClient`
+3. Install skills: `payagent skills install --agents cursor,all`
+4. Default is MOCK — no real money unless user sets live keys
+
+Never commit private keys. Check `payagent doctor` before live pays.

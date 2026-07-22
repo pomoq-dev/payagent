@@ -10,16 +10,22 @@
 Enable AI agents to **pay each other** for APIs, data, and compute — and let developers **monetize MCP tools / endpoints** with a one-line decorator.
 
 ```bash
-pip install payagent
+pip install -U payagent
 # or
 uv add payagent
 pip install 'payagent[fastapi]'   # seller extras + uvicorn
+
+# Teach local agents (Grok / Claude / Codex / Cursor / …)
+payagent skills install --agents all
+# or only detected agents:
+payagent skills install --agents auto
 ```
 
 ```bash
-payagent doctor    # env health
-payagent demo      # mock pay + escrow
-payagent version
+payagent doctor --json
+payagent pay --to 0xSeller --amount 0.05 --json
+payagent get https://api.example/premium --json
+payagent demo
 ```
 
 ---
@@ -47,9 +53,33 @@ Agent A ── AgentPayClient ──► HTTP 402 ──► @paywall Agent B
 
 ---
 
+## For AI agents (skill + CLI)
+
+After `pip install payagent`, any coding agent can:
+
+| Goal | Command |
+|------|---------|
+| Install skill into agents | `payagent skills install --agents all` |
+| Pay address | `payagent pay --to ADDR --amount 0.05 --json` |
+| Call paid API (HTTP 402) | `payagent get URL --json` |
+| Budgets left | `payagent remaining --json` |
+| Health | `payagent doctor --json` |
+
+The skill (`SKILL.md`) teaches **when/how** to pay; the CLI does the action without writing Python.
+
+Supported skill targets: **grok, claude, codex, cursor, pi, continue, windsurf, antigravity**.
+
+---
+
 ## 60-second quickstart
 
-### Buyer (auto-pay on 402)
+### Buyer CLI
+
+```bash
+payagent get https://api.seller.example/premium --json
+```
+
+### Buyer Python (auto-pay on 402)
 
 ```python
 import asyncio
