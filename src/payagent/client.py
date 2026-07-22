@@ -8,6 +8,13 @@ from urllib.parse import urlparse
 import httpx
 
 from payagent.exceptions import PaymentError
+from payagent.headers import (
+    PAYMENT_AMOUNT,
+    PAYMENT_CURRENCY,
+    PAYMENT_PROOF,
+    PAYMENT_PROVIDER,
+    PAYMENT_TX,
+)
 from payagent.providers.x402 import X402Provider
 from payagent.wallet import AgentWallet
 
@@ -78,11 +85,11 @@ class AgentPayClient:
 
             pay_headers = {
                 **hdrs,
-                "X-PAYMENT-PROOF": result.as_proof_header(),
-                "X-PAYMENT-TX": result.tx_hash,
-                "X-PAYMENT-AMOUNT": str(result.amount),
-                "X-PAYMENT-CURRENCY": result.currency,
-                "X-PAYMENT-PROVIDER": result.provider,
+                PAYMENT_PROOF: result.as_proof_header(),
+                PAYMENT_TX: result.tx_hash,
+                PAYMENT_AMOUNT: str(result.amount),
+                PAYMENT_CURRENCY: result.currency,
+                PAYMENT_PROVIDER: result.provider,
             }
             response = await self._client.request(method, url, headers=pay_headers, **kwargs)
             retries += 1

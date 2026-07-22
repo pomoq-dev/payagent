@@ -13,14 +13,17 @@ from payagent import AgentPayClient, AgentWallet, SpendingPolicy
 
 
 async def main() -> None:
-    policy = SpendingPolicy(
-        max_per_tx=0.50,
-        daily_limit=10.0,
-        monthly_limit=100.0,
-        allowlist_domains=[],  # empty = allow all when allow_all_when_empty_allowlist
-        require_human_approval_above=5.0,
-    )
-    wallet = AgentWallet.mock(policy=policy, balance=50.0)
+    # Prefer env (PAYAGENT_MOCK=1 by default). Explicit mock also fine:
+    try:
+        wallet = AgentWallet.from_env()
+    except Exception:
+        policy = SpendingPolicy(
+            max_per_tx=0.50,
+            daily_limit=10.0,
+            monthly_limit=100.0,
+            require_human_approval_above=5.0,
+        )
+        wallet = AgentWallet.mock(policy=policy, balance=50.0)
 
     # Point at your seller (see agent_seller_fastapi.py). Uses mock wallet locally.
     # For a dry demo without a live server we just show wallet payment:

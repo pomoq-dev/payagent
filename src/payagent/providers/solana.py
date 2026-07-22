@@ -6,6 +6,7 @@ Uses a lightweight HTTP RPC wrapper. Default ``mock=True`` avoids real keys.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import secrets
 import time
 from typing import Any
@@ -15,8 +16,9 @@ import httpx
 from payagent.exceptions import InsufficientFundsError, PaymentError, PaymentVerificationError
 from payagent.providers.base import BaseProvider, PaymentResult
 
-# Mainnet USDC mint (reference default)
+# Mainnet USDC mint (reference). Prefer env / settings for devnet mints.
 DEFAULT_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+DEFAULT_DEVNET_RPC = "https://api.devnet.solana.com"
 
 
 class SolanaProvider(BaseProvider):
@@ -29,11 +31,12 @@ class SolanaProvider(BaseProvider):
         self,
         *,
         private_key: str | None = None,
-        rpc_url: str = "https://api.mainnet-beta.solana.com",
+        rpc_url: str = DEFAULT_DEVNET_RPC,
         usdc_mint: str = DEFAULT_USDC_MINT,
         mock: bool = True,
         mock_balance: float = 1000.0,
         http_client: httpx.AsyncClient | None = None,
+        signer: Any | None = None,
     ) -> None:
         self.private_key = private_key
         self.rpc_url = rpc_url
@@ -43,6 +46,7 @@ class SolanaProvider(BaseProvider):
         self._confirmed: dict[str, PaymentResult] = {}
         self._client = http_client
         self._owns_client = http_client is None
+        self.signer = signer
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -84,6 +88,22 @@ class SolanaProvider(BaseProvider):
                 f"Solana balance {bal} < required {amount} {currency}"
             )
 
+        if self.signer is not None:
+            signed = self.signer(
+                recipient,
+                amount,
+                currency,
+                memo=memo,
+                metadata=metadata,
+                usdc_mint=self.usdc_mint,
+                rpc_url=self.rpc_url,
+            )
+            result_obj: Any = await signed if inspect.isawaitable(signed) else signed
+            if not isinstance(result_obj, PaymentResult):
+                raise PaymentError("solana signer must return PaymentResult")
+            self._confirmed[result_obj.tx_hash] = result_obj
+            return result_obj
+
         if self.mock or not self.private_key:
             tx_hash = self._mock_sig(recipient, amount, currency)
             if self.mock:
@@ -108,8 +128,8 @@ class SolanaProvider(BaseProvider):
             return result
 
         raise PaymentError(
-            "Live Solana signing is not bundled (keeps deps light). "
-            "Use mock=True or extend SolanaProvider with solders/solana-py."
+            "Live Solana signing is not bundled. Pass signer=async_fn(...) or use "
+            "mock=True. See docs/TESTING.md and examples/e2e_testnet_skeleton.py."
         )
 
     async def verify_payment(self, tx_hash: str, *, proof: str | None = None) -> bool:

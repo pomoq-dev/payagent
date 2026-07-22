@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 from payagent.exceptions import ProviderNotFoundError
 from payagent.guardrails import PolicyEnforcer, SpendingLedger, SpendingPolicy
+from payagent.history import PaymentJournal, PaymentRecord
 from payagent.providers.base import BaseProvider, PaymentResult
 
 
@@ -34,11 +35,13 @@ class AgentWallet:
         *,
         ledger: SpendingLedger | None = None,
         enforcer: PolicyEnforcer | None = None,
+        journal: PaymentJournal | None = None,
         default_currency: str = "USDC",
     ) -> None:
         self._providers: list[BaseProvider] = list(providers or [])
         self.policy = policy or SpendingPolicy()
         self.enforcer = enforcer or PolicyEnforcer(self.policy, ledger)
+        self.journal = journal or PaymentJournal()
         self.default_currency = default_currency
 
     @property
@@ -133,7 +136,12 @@ class AgentWallet:
         )
         if record_spend:
             self.enforcer.ledger.record(amount, domain)
+        self.journal.append(PaymentRecord.from_result(result, domain=domain, memo=memo))
         return result
+
+    def payments(self, limit: int = 100) -> list[PaymentRecord]:
+        """Return recent payment records (audit trail)."""
+        return self.journal.list(limit=limit)
 
     async def verify(
         self,
@@ -175,6 +183,7 @@ class AgentWallet:
         for p in self._providers:
             await p.close()
         self.enforcer.ledger.close()
+        self.journal.close()
 
     @classmethod
     def mock(
@@ -195,4 +204,114 @@ class AgentWallet:
                 FiatProvider(mock=True, mock_balance=balance),
             ],
             policy=policy or SpendingPolicy(),
+        )
+
+    @classmethod
+    def from_env(cls) -> AgentWallet:
+        """Build a wallet from ``PAYAGENT_*`` / rail environment variables.
+
+        Defaults to **mock** mode (``PAYAGENT_MOCK=1``) so agents work out of
+        the box. Set ``PAYAGENT_MOCK=0`` and provide keys for testnet/live.
+        """
+        from payagent.config import PayagentSettings
+        from payagent.providers.fiat import FiatProvider
+        from payagent.providers.solana import SolanaProvider
+        from payagent.providers.x402 import X402Provider
+
+        settings = PayagentSettings.from_env()
+        policy = settings.to_policy()
+        ledger = (
+            SpendingLedger(settings.spend_db_path())
+            if settings.spend_db_path() is not None
+            else SpendingLedger()
+        )
+        journal = PaymentJournal(
+            str(settings.spend_db_path()) + ".payments"
+            if settings.spend_db_path() is not None
+            else None
+        )
+        mock = settings.mock
+        bal = settings.mock_balance
+        providers: list[BaseProvider] = [
+            X402Provider(
+                private_key=settings.base_private_key,
+                rpc_url=settings.base_rpc_url,
+                chain_id=settings.base_chain_id,
+                network=settings.base_network,
+                mock=mock,
+                mock_balance=bal,
+            ),
+            SolanaProvider(
+                private_key=settings.solana_private_key,
+                rpc_url=settings.solana_rpc_url,
+                usdc_mint=settings.solana_usdc_mint,
+                mock=mock,
+                mock_balance=bal,
+            ),
+            FiatProvider(
+                api_key=settings.payman_api_key,
+                api_url=settings.payman_api_url,
+                mock=mock,
+                mock_balance=bal,
+            ),
+        ]
+        return cls(
+            providers=providers,
+            policy=policy,
+            ledger=ledger,
+            journal=journal,
+            default_currency=settings.default_currency,
+        )
+
+    @classmethod
+    def from_settings(cls, settings: Any) -> AgentWallet:
+        """Same as :meth:`from_env` but with an explicit settings object."""
+        from payagent.config import PayagentSettings
+        from payagent.providers.fiat import FiatProvider
+        from payagent.providers.solana import SolanaProvider
+        from payagent.providers.x402 import X402Provider
+
+        if not isinstance(settings, PayagentSettings):
+            raise TypeError("settings must be PayagentSettings")
+        policy = settings.to_policy()
+        ledger = (
+            SpendingLedger(settings.spend_db_path())
+            if settings.spend_db_path() is not None
+            else SpendingLedger()
+        )
+        journal = PaymentJournal(
+            str(settings.spend_db_path()) + ".payments"
+            if settings.spend_db_path() is not None
+            else None
+        )
+        mock = settings.mock
+        bal = settings.mock_balance
+        return cls(
+            providers=[
+                X402Provider(
+                    private_key=settings.base_private_key,
+                    rpc_url=settings.base_rpc_url,
+                    chain_id=settings.base_chain_id,
+                    network=settings.base_network,
+                    mock=mock,
+                    mock_balance=bal,
+                ),
+                SolanaProvider(
+                    private_key=settings.solana_private_key,
+                    rpc_url=settings.solana_rpc_url,
+                    usdc_mint=settings.solana_usdc_mint,
+                    mock=mock,
+                    mock_balance=bal,
+                ),
+                FiatProvider(
+                    api_key=settings.payman_api_key,
+                    api_url=settings.payman_api_url,
+                    mock=mock,
+                    mock_balance=bal,
+                ),
+            ],
+            policy=policy,
+            ledger=ledger,
+            journal=journal,
+            default_currency=settings.default_currency,
         )

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "payagent"
-version = "0.1.0"
+version = "0.2.0"
 description = "Universal Payment & Monetization Engine for AI Agents — HTTP 402, multi-rail wallets, budget guardrails, escrow, and @paywall for FastAPI/MCP."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -49,6 +49,7 @@ dependencies = [
 fastapi = [
   "fastapi>=0.110",
   "starlette>=0.36",
+  "uvicorn>=0.27",
 ]
 dev = [
   "pytest>=7",
@@ -59,8 +60,12 @@ dev = [
   "twine",
   "fastapi>=0.110",
   "starlette>=0.36",
+  "uvicorn>=0.27",
   "httpx>=0.27",
 ]
+
+[project.scripts]
+payagent = "payagent.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/pomoq-dev/payagent"
@@ -79,8 +84,10 @@ include = [
   "/src",
   "/tests",
   "/examples",
+  "/docs",
   "/README.md",
   "/LICENSE",
+  "/CHANGELOG.md",
 ]
 
 [tool.pytest.ini_options]

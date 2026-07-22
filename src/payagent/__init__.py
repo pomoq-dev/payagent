@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from payagent.client import AgentPayClient
+from payagent.config import PayagentSettings
 from payagent.escrow import EscrowRecord, EscrowSession, EscrowState
 from payagent.exceptions import (
     AgentPayError,
@@ -17,6 +18,16 @@ from payagent.exceptions import (
     ProviderNotFoundError,
 )
 from payagent.guardrails import PolicyEnforcer, SpendingLedger, SpendingPolicy
+from payagent.headers import (
+    PAYMENT_ADDRESS,
+    PAYMENT_AMOUNT,
+    PAYMENT_CURRENCY,
+    PAYMENT_NETWORK,
+    PAYMENT_PROOF,
+    PAYMENT_PROVIDER,
+    PAYMENT_TX,
+)
+from payagent.history import PaymentJournal, PaymentRecord
 from payagent.paywall import PaymentVerifier, paywall
 from payagent.providers import (
     BaseProvider,
@@ -27,7 +38,7 @@ from payagent.providers import (
 )
 from payagent.wallet import AgentWallet
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # core
@@ -38,10 +49,21 @@ __all__ = [
     "EscrowState",
     "paywall",
     "PaymentVerifier",
-    # policy
+    "PayagentSettings",
+    # policy / history
     "SpendingPolicy",
     "SpendingLedger",
     "PolicyEnforcer",
+    "PaymentJournal",
+    "PaymentRecord",
+    # headers
+    "PAYMENT_ADDRESS",
+    "PAYMENT_AMOUNT",
+    "PAYMENT_CURRENCY",
+    "PAYMENT_NETWORK",
+    "PAYMENT_PROOF",
+    "PAYMENT_TX",
+    "PAYMENT_PROVIDER",
     # providers
     "BaseProvider",
     "PaymentResult",

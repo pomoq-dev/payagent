@@ -7,6 +7,7 @@ local demos), payments are simulated deterministically without private keys.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import secrets
 import time
 from typing import Any
@@ -14,6 +15,12 @@ from typing import Any
 import httpx
 
 from payagent.exceptions import InsufficientFundsError, PaymentError, PaymentVerificationError
+from payagent.headers import (
+    PAYMENT_ADDRESS,
+    PAYMENT_AMOUNT,
+    PAYMENT_CURRENCY,
+    PAYMENT_NETWORK,
+)
 from payagent.providers.base import BaseProvider, PaymentResult
 
 
@@ -27,12 +34,13 @@ class X402Provider(BaseProvider):
         self,
         *,
         private_key: str | None = None,
-        rpc_url: str = "https://mainnet.base.org",
-        chain_id: int = 8453,
-        network: str = "base",
+        rpc_url: str = "https://sepolia.base.org",
+        chain_id: int = 84532,
+        network: str = "base-sepolia",
         mock: bool = True,
         mock_balance: float = 1000.0,
         http_client: httpx.AsyncClient | None = None,
+        signer: Any | None = None,
     ) -> None:
         self.private_key = private_key
         self.rpc_url = rpc_url
@@ -43,6 +51,8 @@ class X402Provider(BaseProvider):
         self._confirmed: dict[str, PaymentResult] = {}
         self._client = http_client
         self._owns_client = http_client is None
+        # Optional async callable (recipient, amount, currency, **kw) -> PaymentResult
+        self.signer = signer
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -91,6 +101,22 @@ class X402Provider(BaseProvider):
                 f"x402 balance {bal} < required {amount} {currency}"
             )
 
+        if self.signer is not None:
+            signed = self.signer(
+                recipient,
+                amount,
+                currency,
+                memo=memo,
+                metadata=metadata,
+                chain_id=self.chain_id,
+                network=self.network,
+            )
+            result_obj: Any = await signed if inspect.isawaitable(signed) else signed
+            if not isinstance(result_obj, PaymentResult):
+                raise PaymentError("x402 signer must return PaymentResult")
+            self._confirmed[result_obj.tx_hash] = result_obj
+            return result_obj
+
         if self.mock or not self.private_key:
             tx_hash = self._mock_tx_hash(recipient, amount, currency)
             if self.mock:
@@ -114,11 +140,11 @@ class X402Provider(BaseProvider):
             self._confirmed[tx_hash] = result
             return result
 
-        # Live signing would go here (web3.py / eth-account). Kept lightweight
-        # so the library stays free of heavy Web3 deps by default.
+        # Live signing is pluggable via `signer=` to avoid heavy Web3 deps by default.
+        # Install optional extras and pass an async signer, or use mock=True / testnets.
         raise PaymentError(
-            "Live x402 signing requires private_key and an optional web3 backend; "
-            "use mock=True for demos or inject a custom signed transfer."
+            "Live x402 signing is not bundled. Pass signer=async_fn(...) or use "
+            "mock=True. See docs/TESTING.md and examples/e2e_testnet_skeleton.py."
         )
 
     async def verify_payment(self, tx_hash: str, *, proof: str | None = None) -> bool:
@@ -161,12 +187,14 @@ class X402Provider(BaseProvider):
                 return str(val) if val is not None else None
             return None
 
-        address = _get("X-PAYMENT-ADDRESS") or _get("X-Payment-Address")
-        amount = _get("X-PAYMENT-AMOUNT") or _get("X-Payment-Amount")
-        currency = _get("X-PAYMENT-CURRENCY") or _get("X-Payment-Currency") or "USDC"
-        network = _get("X-PAYMENT-NETWORK") or _get("X-Payment-Network") or "base"
+        address = _get(PAYMENT_ADDRESS) or _get("X-Payment-Address")
+        amount = _get(PAYMENT_AMOUNT) or _get("X-Payment-Amount")
+        currency = _get(PAYMENT_CURRENCY) or _get("X-Payment-Currency") or "USDC"
+        network = _get(PAYMENT_NETWORK) or _get("X-Payment-Network") or "base"
         if not address or not amount:
-            raise PaymentError("402 response missing X-PAYMENT-ADDRESS or X-PAYMENT-AMOUNT")
+            raise PaymentError(
+                f"402 response missing {PAYMENT_ADDRESS} or {PAYMENT_AMOUNT}"
+            )
         return {
             "address": address,
             "amount": amount,
